@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EV CHARGING HUB - Smart Slot Management System</title>
+    <!-- Google Fonts for sleek automotive typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <!-- Plotly.js for interactive analytics -->
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <!-- Custom Stylesheet -->
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+    <!-- TOP SYSTEM BANNER -->
+    <div class="simulation-banner">
+        <div class="banner-content">
+            <span class="pulsing-dot"></span>
+            <strong>DEMO / SIMULATION MODE</strong> &mdash; Academic IoT Demonstration. Sensor data simulated via Node-RED / API. Architecture ready for ESP32 hardware deployment.
+        </div>
+        <div class="last-sync" id="lastSyncTime">Syncing...</div>
+    </div>
+
+    <!-- MAIN CONTAINER -->
+    <div class="dashboard-container">
+
+        <!-- HEADER -->
+        <header class="hub-header">
+            <div class="header-left">
+                <div class="brand-badge">⚡ IOT SMART GRID</div>
+                <h1 class="hub-title">EV CHARGING HUB</h1>
+                <p class="hub-subtitle">IoT-Based Smart EV Charging Slot Management System</p>
+            </div>
+            <div class="header-right">
+                <div class="mode-pill">
+                    <span class="dot-indicator"></span>
+                    <span>SIMULATION ACTIVE</span>
+                </div>
+                <div class="system-time" id="systemClock">--:--:--</div>
+            </div>
+        </header>
+
+        <!-- KPI SUMMARY METRICS -->
+        <section class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">TOTAL SLOTS</div>
+                <div class="stat-value" id="statTotalSlots">10</div>
+                <div class="stat-sub">EV01 &ndash; EV10 Grid</div>
+            </div>
+            <div class="stat-card stat-available">
+                <div class="stat-label">AVAILABLE</div>
+                <div class="stat-value text-available" id="statAvailable">--</div>
+                <div class="stat-sub">Ready for charging</div>
+            </div>
+            <div class="stat-card stat-charging">
+                <div class="stat-label">CHARGING</div>
+                <div class="stat-value text-charging" id="statCharging">--</div>
+                <div class="stat-sub">Active power delivery</div>
+            </div>
+            <div class="stat-card stat-completed">
+                <div class="stat-label">COMPLETED</div>
+                <div class="stat-value text-completed" id="statCompleted">--</div>
+                <div class="stat-sub">Charged &amp; parked</div>
+            </div>
+            <div class="stat-card stat-energy">
+                <div class="stat-label">ENERGY USED</div>
+                <div class="stat-value text-gold" id="statEnergy">-- <span class="unit">kWh</span></div>
+                <div class="stat-sub">Cumulative station draw</div>
+            </div>
+            <div class="stat-card stat-battery">
+                <div class="stat-label">BATTERY AVERAGE</div>
+                <div class="stat-value text-gold" id="statBatteryAvg">-- <span class="unit">%</span></div>
+                <div class="stat-sub">Connected vehicles</div>
+            </div>
+        </section>
+
+        <!-- NATURAL LANGUAGE SEARCH BAR -->
+        <section class="search-section">
+            <div class="search-header">
+                <h2>SMART CHARGING SEARCH</h2>
+                <span class="search-hint">Natural language SQLite queries</span>
+            </div>
+            <form id="searchForm" class="search-form" onsubmit="handleSearchSubmit(event)">
+                <div class="search-input-wrapper">
+                    <input 
+                        type="text" 
+                        id="searchInput" 
+                        class="search-input" 
+                        placeholder="Search charging information..." 
+                        autocomplete="off"
+                    />
+                    <button type="button" class="btn-clear" id="btnClearSearch" onclick="clearSearch()" title="Clear">✕</button>
+                </div>
+                <button type="submit" class="btn-search">SEARCH</button>
+            </form>
+
+            <!-- Quick Query Suggestions -->
+            <div class="query-chips">
+                <span class="chips-label">Quick Queries:</span>
+                <button type="button" class="chip" onclick="quickQuery('available charging slots')">available charging slots</button>
+                <button type="button" class="chip" onclick="quickQuery('how many chargers are available')">how many chargers are available</button>
+                <button type="button" class="chip" onclick="quickQuery('how many EVs are currently charging')">how many EVs are currently charging</button>
+                <button type="button" class="chip" onclick="quickQuery('status of EV03')">status of EV03</button>
+                <button type="button" class="chip" onclick="quickQuery('show charging vehicles')">show charging vehicles</button>
+                <button type="button" class="chip" onclick="quickQuery('show completed charging')">show completed charging</button>
+                <button type="button" class="chip" onclick="quickQuery('show today\'s charging sessions')">show today's charging sessions</button>
+                <button type="button" class="chip" onclick="quickQuery('show EVs below 30% battery')">show EVs below 30% battery</button>
+                <button type="button" class="chip" onclick="quickQuery('show highest energy consumption')">show highest energy consumption</button>
+                <button type="button" class="chip" onclick="quickQuery('show faulty chargers')">show faulty chargers</button>
+            </div>
+
+            <!-- Search Results Display Card -->
+            <div id="searchResultsCard" class="search-results-card" style="display: none;">
+                <div class="search-result-header">
+                    <div id="searchResultTitle" class="result-title">Search Result</div>
+                    <button type="button" class="btn-close-result" onclick="closeSearchResult()">✕</button>
+                </div>
+                <div id="searchResultMessage" class="result-message"></div>
+                <div id="searchResultContent" class="result-content"></div>
+            </div>
+        </section>
+
+        <!-- LIVE CHARGING SLOTS GRID (EV01 - EV10) -->
+        <section class="slots-section">
+            <div class="section-title-bar">
+                <div>
+                    <h2>LIVE CHARGING SLOTS</h2>
+                    <p class="section-desc">Real-time status of bays EV01 to EV10 (Auto-refreshed)</p>
+                </div>
+                <div class="legend">
+                    <span class="legend-item"><span class="legend-dot status-available"></span> Available</span>
+                    <span class="legend-item"><span class="legend-dot status-charging"></span> Charging</span>
+                    <span class="legend-item"><span class="legend-dot status-completed"></span> Completed</span>
+                    <span class="legend-item"><span class="legend-dot status-fault"></span> Fault</span>
+                </div>
+            </div>
+            <div class="slots-grid" id="slotsGrid">
+                <!-- Slot cards EV01 to EV10 populated dynamically via script.js -->
+                <div class="loading-placeholder">Loading charging slots from SQLite...</div>
+            </div>
+        </section>
+
+        <!-- DUAL COLUMN: LIVE CHARGING MONITOR & RECENT EVENTS -->
+        <div class="dual-row">
+            
+            <!-- LIVE CHARGING MONITOR -->
+            <section class="monitor-section">
+                <div class="section-title-bar">
+                    <h2>LIVE CHARGING MONITOR</h2>
+                    <span class="badge-live"><span class="pulsing-dot-small"></span> TELEMETRY</span>
+                </div>
+                <div class="monitor-table-wrapper">
+                    <table class="monitor-table">
+                        <thead>
+                            <tr>
+                                <th>Slot</th>
+                                <th>Vehicle</th>
+                                <th>Type</th>
+                                <th>Battery</th>
+                                <th>Power</th>
+                                <th>Energy</th>
+                                <th>Start Time</th>
+                                <th>Est. Finish</th>
+                            </tr>
+                        </thead>
+                        <tbody id="activeMonitorBody">
+                            <tr><td colspan="8" class="text-center">Loading active sessions...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- RECENT CHARGING EVENTS -->
+            <section class="events-section">
+                <div class="section-title-bar">
+                    <h2>RECENT CHARGING EVENTS</h2>
+                    <span class="badge-audit">AUDIT LOG</span>
+                </div>
+                <div class="events-list" id="recentEventsList">
+                    <div class="loading-placeholder">Loading event stream...</div>
+                </div>
+            </section>
+        </div>
+
+        <!-- HISTORICAL ANALYTICS SECTION (PLOTLY) -->
+        <section class="analytics-section">
+            <div class="analytics-header">
+                <div>
+                    <h2>HISTORICAL EV CHARGING ANALYTICS</h2>
+                    <p class="section-desc">Computed using Pandas &amp; OpenPyXL from EV_Charging_Dataset.xlsx &bull; Rendered via Plotly.js</p>
+                </div>
+            </div>
+
+            <!-- Historical Summary Stats Strip -->
+            <div class="historical-summary-strip" id="historicalSummaryStrip">
+                <div class="h-stat-item">
+                    <span class="h-label">Total Records</span>
+                    <span class="h-val" id="hTotalRecords">--</span>
+                </div>
+                <div class="h-stat-item">
+                    <span class="h-label">Completed Sessions</span>
+                    <span class="h-val text-available" id="hCompleted">--</span>
+                </div>
+                <div class="h-stat-item">
+                    <span class="h-label">Avg Duration</span>
+                    <span class="h-val" id="hAvgDuration">-- min</span>
+                </div>
+                <div class="h-stat-item">
+                    <span class="h-label">Total Historical Energy</span>
+                    <span class="h-val text-gold" id="hTotalEnergy">-- kWh</span>
+                </div>
+                <div class="h-stat-item">
+                    <span class="h-label">Avg Energy/Session</span>
+                    <span class="h-val" id="hAvgEnergy">-- kWh</span>
+                </div>
+                <div class="h-stat-item">
+                    <span class="h-label">Most Used Slot</span>
+                    <span class="h-val text-charging" id="hMostUsedSlot">--</span>
+                </div>
+            </div>
+
+            <!-- 6 Interactive Plotly Charts Grid -->
+            <div class="charts-grid">
+                
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3>Daily Charging Sessions</h3>
+                        <span class="chart-tag">Trend</span>
+                    </div>
+                    <div id="chartDailySessions" class="chart-container"></div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3>Daily Energy Consumption</h3>
+                        <span class="chart-tag">kWh</span>
+                    </div>
+                    <div id="chartDailyEnergy" class="chart-container"></div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3>Vehicle Type Distribution</h3>
+                        <span class="chart-tag">Fleet Mix</span>
+                    </div>
+                    <div id="chartVehicleDistribution" class="chart-container"></div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3>Charging Slot Utilization</h3>
+                        <span class="chart-tag">EV01 - EV10</span>
+                    </div>
+                    <div id="chartSlotUtilization" class="chart-container"></div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3>Battery Level Distribution</h3>
+                        <span class="chart-tag">Start vs End</span>
+                    </div>
+                    <div id="chartBatteryDistribution" class="chart-container"></div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3>Charging Duration Distribution</h3>
+                        <span class="chart-tag">Minutes</span>
+                    </div>
+                    <div id="chartDurationDistribution" class="chart-container"></div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- FOOTER -->
+        <footer class="hub-footer">
+            <div class="footer-left">
+                <strong>IoT-Based Smart EV Charging Slot Management System</strong> &bull; Academic Demonstration Project
+            </div>
+            <div class="footer-right">
+                Node-RED Simulation &bull; Flask &bull; SQLite &bull; Pandas &bull; Plotly &bull; Future ESP32 Architecture Ready
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- Application Script -->
+    <script src="/static/script.js"></script>
+</body>
+</html>
